@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Webpush Golang Example</title>
+</head>
+<body>
+<button id="subscribeButton">Подписаться на уведомления</button>
+
+<script>
+    const vapidPublicKey = 'BG5LblQ_TNwE5hegYZVWaBN45TegcepZUB97Md0x-BGYJxkX5neXwP-Ihcc1pjBw7SzEvOC_ZSQzBfIhw2daEzg';
+
+    // Функция для подписки на уведомления
+    async function subscribeToNotifications() {
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                console.log("Уведомления не разрешены пользователем");
+                return;
+            }
+
+            if (!('serviceWorker' in navigator)) {
+                console.error("Service Workers не поддерживаются этим браузером");
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.register('sw.js');
+            await navigator.serviceWorker.ready;
+
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+                });
+            }
+
+            console.log("Подписка:", JSON.stringify(subscription));
+            await sendSubscriptionToBackend(subscription);
+        } catch (error) {
+            console.error("Ошибка подписки на уведомления:", error);
+        }
+    }
+
+    // Преобразование ключа VAPID из base64
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+    }
+
+    // Отправка подписки на бэкенд
+    async function sendSubscriptionToBackend(subscription) {
+        try {
+            const response = await fetch('http://localhost:8080/subscribe', { // Измените URL на URL вашего сервера
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(subscription)
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка при отправке подписки на сервер');
+            }
+
+            console.log("Подписка успешно отправлена на бэкенд");
+        } catch (error) {
+            console.error("Ошибка при отправке подписки на сервер:", error);
+        }
+    }
+
+    // Привязываем функцию к кнопке
+    document.getElementById('subscribeButton').addEventListener('click', subscribeToNotifications);
+</script>
+</body>
+</html>
